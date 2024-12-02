@@ -72,6 +72,24 @@ Pass::Status LocalSingleStoreElimPass::ProcessImpl() {
   if (!AllExtensionsSupported()) return Status::SuccessWithoutChange;
   // Process all entry point functions
   ProcessFunction pfn = [this](Function* fp) {
+    if (fp->IsDeclaration()) {
+      for (auto& a : context()->annotations()) {
+        // Check if function has import linkage so we can skip it
+        if (a.opcode() == spv::Op::OpDecorate) {
+          if (spv::Decoration(a.GetSingleWordOperand(1)) ==
+            spv::Decoration::LinkageAttributes) {
+            uint32_t lastOperand = a.NumOperands() - 1;
+            if (spv::LinkageType(a.GetSingleWordOperand(lastOperand)) ==
+              spv::LinkageType::Import) {
+              
+              if (fp->result_id() == a.GetSingleWordOperand(0)) {
+                return false;
+              }
+            }
+          }
+        }
+      }
+    }
     return LocalSingleStoreElim(fp);
   };
   bool modified = context()->ProcessReachableCallTree(pfn);
